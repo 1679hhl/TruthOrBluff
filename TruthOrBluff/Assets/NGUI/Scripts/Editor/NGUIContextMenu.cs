@@ -71,20 +71,20 @@ public static class NGUIContextMenu
 	[MenuItem("CONTEXT/UITable/Help")]
 	static void ShowHelp16 (MenuCommand command) { NGUIHelp.Show(typeof(UITable)); }
 
-	[MenuItem("CONTEXT/UIPlayTween/Help")]
-	static void ShowHelp17 (MenuCommand command) { NGUIHelp.Show(typeof(UIPlayTween)); }
+	// [MenuItem("CONTEXT/UIPlayTween/Help")]
+	// static void ShowHelp17 (MenuCommand command) { NGUIHelp.Show(typeof(UIPlayTween)); }
 
-	[MenuItem("CONTEXT/UIPlayAnimation/Help")]
-	static void ShowHelp18 (MenuCommand command) { NGUIHelp.Show(typeof(UIPlayAnimation)); }
+	// [MenuItem("CONTEXT/UIPlayAnimation/Help")]
+	// static void ShowHelp18 (MenuCommand command) { NGUIHelp.Show(typeof(UIPlayAnimation)); }
 
 	[MenuItem("CONTEXT/UIPlaySound/Help")]
 	static void ShowHelp19 (MenuCommand command) { NGUIHelp.Show(typeof(UIPlaySound)); }
 
-	[MenuItem("CONTEXT/UIScrollView/Help")]
-	static void ShowHelp20 (MenuCommand command) { NGUIHelp.Show(typeof(UIScrollView)); }
+	// [MenuItem("CONTEXT/UIScrollView/Help")]
+	// static void ShowHelp20 (MenuCommand command) { NGUIHelp.Show(typeof(UIScrollView)); }
 
-	[MenuItem("CONTEXT/UIDragScrollView/Help")]
-	static void ShowHelp21 (MenuCommand command) { NGUIHelp.Show(typeof(UIDragScrollView)); }
+	// [MenuItem("CONTEXT/UIDragScrollView/Help")]
+	// static void ShowHelp21 (MenuCommand command) { NGUIHelp.Show(typeof(UIDragScrollView)); }
 
 	[MenuItem("CONTEXT/UICenterOnChild/Help")]
 	static void ShowHelp22 (MenuCommand command) { NGUIHelp.Show(typeof(UICenterOnChild)); }
@@ -97,7 +97,6 @@ public static class NGUIContextMenu
 	static void ShowHelp24 (MenuCommand command) { NGUIHelp.Show(typeof(UITweener)); }
 
 	[MenuItem("CONTEXT/ActiveAnimation/Help")]
-	[MenuItem("CONTEXT/UIPlayAnimation/Help")]
 	static void ShowHelp25 (MenuCommand command) { NGUIHelp.Show(typeof(UIPlayAnimation)); }
 
 	[MenuItem("CONTEXT/UIScrollView/Help")]
