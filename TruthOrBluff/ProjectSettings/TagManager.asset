@@ -11,10 +11,10 @@ TagManager:
   - NoLight
   - Water
   - UI
-  - 
-  - 
-  - 
-  - 
+  - 'Player1Mask          '
+  - 'Player2Mask    '
+  - 'Player3Mask    '
+  - 'Player4Mask    '
   - 
   - 
   - 
