@@ -103,6 +103,10 @@ namespace LiarsBar
         /// <summary>重新开始游戏</summary>
         public void RestartGame()
         {
+            // 清除旧玩家
+            if (presenter != null)
+                presenter.ClearAllPlayers();
+            
             // 清除旧实例
             GameEngine.ClearInstance();
             

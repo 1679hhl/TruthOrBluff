@@ -16,8 +16,9 @@ namespace LiarsBar
         public TextMeshProUGUI GameStatusText;
         public TextMeshProUGUI TableRankText;
         public TextMeshProUGUI ChamberCountText;
-        public Transform PlayerViewContainer;
-        public GameObject PlayerViewPrefab;
+        
+        [Header("3D玩家生成")]
+        public PlayerSpawnManager SpawnManager; // 玩家生成管理器
         
         [Header("消息面板")]
         public TextMeshProUGUI MessageText;
@@ -27,7 +28,7 @@ namespace LiarsBar
         public bool ShowDebugLogs = true;
 
         private GameEngine engine;
-        private List<PlayerView> playerViews = new List<PlayerView>();
+        private List<PlayerController> playerControllers = new List<PlayerController>();
         private float messageTimer;
 
         void Awake()
@@ -78,15 +79,15 @@ namespace LiarsBar
         {
             Log($"游戏初始化：{e.Players.Length}名玩家，桌面牌面 {e.TableRank}");
             
-            // 创建玩家视图
-            foreach (var player in e.Players)
+            // 使用 SpawnManager 动态生成玩家
+            if (SpawnManager == null)
             {
-                var viewObj = Instantiate(PlayerViewPrefab, PlayerViewContainer);
-                var view = viewObj.GetComponent<PlayerView>();
-                view.PlayerIndex = player.Index;
-                view.UpdateDisplay(player, false);
-                playerViews.Add(view);
+                Debug.LogError("未设置 PlayerSpawnManager！无法生成玩家。");
+                return;
             }
+            
+            playerControllers = SpawnManager.SpawnPlayers(e.Players);
+            Log($"已生成 {playerControllers.Count} 名玩家");
             
             // 更新UI
             if (TableRankText != null)
@@ -102,12 +103,11 @@ namespace LiarsBar
             ShowMessage($"{e.PlayerName} 声称打出 {e.DeclaredRank}");
             
             // 播放动画
-            var view = GetPlayerView(e.PlayerIndex);
-            view?.PlayCardAnimation();
+            var controller = GetPlayerController(e.PlayerIndex);
+            controller?.PlayCardAnimation();
             
-            // 更新手牌数
-            var playerData = engine.State.Players[e.PlayerIndex];
-            view?.UpdateDisplay(playerData, true);
+            // 更新UI显示
+            controller?.UpdateUI(true);
         }
 
         void OnClaimAccepted(ClaimAcceptedEvent e)
@@ -138,12 +138,11 @@ namespace LiarsBar
             ShowMessage($"{e.PlayerName} 被淘汰！", 3f);
             
             // 播放淘汰动画
-            var view = GetPlayerView(e.PlayerIndex);
-            view?.PlayEliminatedAnimation();
+            var controller = GetPlayerController(e.PlayerIndex);
+            controller?.PlayEliminatedAnimation();
             
             // 更新显示
-            var playerData = engine.State.Players[e.PlayerIndex];
-            view?.UpdateDisplay(playerData, false);
+            controller?.UpdateUI(false);
         }
 
         void OnGameOver(GameOverEvent e)
@@ -161,8 +160,8 @@ namespace LiarsBar
                 ShowMessage($"{e.WinnerName} 获胜！", 5f);
                 
                 // 播放胜利动画
-                var view = GetPlayerView(e.WinnerIndex.Value);
-                view?.PlayWinAnimation();
+                var controller = GetPlayerController(e.WinnerIndex.Value);
+                controller?.PlayWinAnimation();
             }
         }
 
@@ -170,12 +169,17 @@ namespace LiarsBar
         {
             Log($"轮到 {e.CurrentPlayerName} ({e.Phase})");
             
-            // 更新所有玩家视图的高亮状态
-            foreach (var view in playerViews)
+            // 更新所有玩家的高亮状态
+            foreach (var controller in playerControllers)
             {
-                bool isActive = view.PlayerIndex == e.CurrentPlayerIndex;
-                var playerData = engine.State.Players[view.PlayerIndex];
-                view.UpdateDisplay(playerData, isActive);
+                bool isActive = controller.PlayerIndex == e.CurrentPlayerIndex;
+                controller.UpdateUI(isActive);
+                
+                // 当前回合玩家播放思考动画
+                if (isActive && e.Phase == Phase.Claim)
+                {
+                    controller.PlayThinkAnimation();
+                }
             }
         }
 
@@ -206,9 +210,9 @@ namespace LiarsBar
             }
         }
 
-        PlayerView GetPlayerView(int index)
+        PlayerController GetPlayerController(int index)
         {
-            return playerViews.FirstOrDefault(v => v.PlayerIndex == index);
+            return playerControllers.FirstOrDefault(c => c.PlayerIndex == index);
         }
 
         void Log(string msg)
@@ -219,15 +223,22 @@ namespace LiarsBar
 
         // ========== 公开方法 ==========
 
-        /// <summary>手动刷新所有玩家视图</summary>
+        /// <summary>手动刷新所有玩家显示</summary>
         public void RefreshAllPlayers()
         {
-            for (int i = 0; i < playerViews.Count; i++)
+            foreach (var controller in playerControllers)
             {
-                var playerData = engine.State.Players[i];
-                bool isActive = i == engine.State.Turn;
-                playerViews[i].UpdateDisplay(playerData, isActive);
+                bool isActive = controller.PlayerIndex == engine.State.Turn;
+                controller.UpdateUI(isActive);
             }
+        }
+        
+        /// <summary>清除所有玩家（重新开始游戏时调用）</summary>
+        public void ClearAllPlayers()
+        {
+            if (SpawnManager != null)
+                SpawnManager.ClearPlayers();
+            playerControllers.Clear();
         }
     }
 }
