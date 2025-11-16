@@ -26,7 +26,7 @@ namespace LiarsBar
     }
 
     /// <summary>游戏阶段</summary>
-    public enum Phase { Claim, Response }
+    public enum Phase { Claim, WaitForResponse, Response }
 
     /// <summary>上一次声明记录</summary>
     public class LastClaim
@@ -161,6 +161,8 @@ namespace LiarsBar
 
             if (State.Phase == Phase.Claim)
                 ProcessClaimPhase();
+            else if (State.Phase == Phase.WaitForResponse)
+                ProcessWaitPhase();
             else
                 ProcessResponsePhase();
         }
@@ -192,7 +194,8 @@ namespace LiarsBar
                 RemainingCards = me.Hand.Count
             });
             
-            State.Phase = Phase.Response;
+            // 切换到等待阶段，下一步才进入Response
+            State.Phase = Phase.WaitForResponse;
         }
 
         Card ChooseAndPlayCard(PlayerData player)
@@ -201,6 +204,23 @@ namespace LiarsBar
             var card = PopCardFromHand(player, chooseId) ?? PopRandomCard(player, rng);
             State.Pile.Add(card);
             return card;
+        }
+
+        void ProcessWaitPhase()
+        {
+            // 等待阶段：切换到下一个玩家，准备进入Response阶段
+            int nextPlayer = NextAlive(State.Turn);
+            var nextPlayerData = State.Players[nextPlayer];
+            
+            Events.TriggerTurnChanged(new TurnChangedEvent
+            {
+                CurrentPlayerIndex = nextPlayer,
+                CurrentPlayerName = nextPlayerData.Name,
+                Phase = Phase.WaitForResponse
+            });
+            
+            // 切换到Response阶段，下一步将进行质疑判断
+            State.Phase = Phase.Response;
         }
 
         void ProcessResponsePhase()
@@ -214,8 +234,12 @@ namespace LiarsBar
                 return;
             }
 
-            if (agents[responder].DecideChallenge(State, responder, rng))
-                ResolveChallenge(responder);
+            // 特殊情况：只剩两名玩家且出牌方手牌为空，强制质疑
+            var claimant = State.Players[State.LastClaim.PlayerIndex];
+            bool isFinalShowdown = State.AliveCount() == 2 && claimant.Hand.Count == 0;
+            
+            if (isFinalShowdown || agents[responder].DecideChallenge(State, responder, rng))
+                ResolveChallenge(responder, isFinalShowdown);
             else
             {
                 var responderData = State.Players[responder];
@@ -238,7 +262,7 @@ namespace LiarsBar
             }
         }
 
-        void ResolveChallenge(int responderIndex)
+        void ResolveChallenge(int responderIndex, bool isFinalShowdown = false)
         {
             var claimantIndex = State.LastClaim.PlayerIndex;
             var claimant = State.Players[claimantIndex];
@@ -259,16 +283,8 @@ namespace LiarsBar
             int loserIndex = truthful ? responderIndex : claimantIndex;
             var loser = State.Players[loserIndex];
 
-            State.ChamberCount++;
-            bool hit = (State.ChamberCount == State.BulletSlot);
-
-            Events.TriggerPunishmentTrack(new PunishmentTrackEvent
-            {
-                ChamberCount = State.ChamberCount,
-                Hit = hit
-            });
-
-            if (hit)
+            // 如果是两人局最后决斗，失败者直接死亡
+            if (isFinalShowdown)
             {
                 loser.Alive = false;
                 State.ChamberCount = 0;
@@ -280,9 +296,35 @@ namespace LiarsBar
                     AliveCount = State.AliveCount()
                 });
             }
+            else
+            {
+                // 正常质疑流程：推进惩罚轨
+                State.ChamberCount++;
+                bool hit = (State.ChamberCount == State.BulletSlot);
+
+                Events.TriggerPunishmentTrack(new PunishmentTrackEvent
+                {
+                    ChamberCount = State.ChamberCount,
+                    Hit = hit
+                });
+
+                if (hit)
+                {
+                    loser.Alive = false;
+                    State.ChamberCount = 0;
+                    
+                    Events.TriggerPlayerEliminated(new PlayerEliminatedEvent
+                    {
+                        PlayerIndex = loserIndex,
+                        PlayerName = loser.Name,
+                        AliveCount = State.AliveCount()
+                    });
+                }
+            }
 
             State.LastClaim = null;
-            State.Turn = NextAlive(loserIndex);
+            // 如果失败者还活着，由失败者继续出牌；否则跳到下一个存活玩家
+            State.Turn = loser.Alive ? loserIndex : NextAlive(loserIndex);
             State.Phase = Phase.Claim;
             
             var nextPlayer = State.Players[State.Turn];

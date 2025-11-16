@@ -320,6 +320,9 @@ MonoBehaviour:
   LeftHandBone: {fileID: 0}
   RightHandBone: {fileID: 0}
   CardHoldPoint: {fileID: 0}
+  CardPrefab_Q: {fileID: 0}
+  CardPrefab_K: {fileID: 0}
+  CardPrefab_A: {fileID: 2047644169862752907, guid: b58e3f4ede0909642a445638cfb85edb, type: 3}
   CardPrefab: {fileID: 2082209830568714351, guid: a1de985581a82a84cbb95913c6f3c485, type: 3}
   PlayCardFeedback: {fileID: 0}
   EliminatedFeedback: {fileID: 0}

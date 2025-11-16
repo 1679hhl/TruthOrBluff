@@ -36,7 +36,14 @@ namespace LiarsBar
         public Transform LeftHandBone; // 左手骨骼（手持卡牌）
         public Transform RightHandBone; // 右手骨骼
         public Transform CardHoldPoint; // 手牌持握点（如果没有骨骼绑定）
-        public GameObject CardPrefab; // 3D卡牌预制体
+        
+        [Header("卡牌预制体配置")]
+        public GameObject CardPrefab_Q; // Q牌预制体
+        public GameObject CardPrefab_K; // K牌预制体
+        public GameObject CardPrefab_A; // A牌预制体
+        [Tooltip("兼容旧版本的通用预制体，如果特定预制体为空则使用此预制体")]
+        public GameObject CardPrefab; // 通用卡牌预制体（后备）
+        
         private List<GameObject> handCardObjects = new List<GameObject>();
         
         [Header("反馈效果")]
@@ -113,7 +120,7 @@ namespace LiarsBar
                 Destroy(card);
             handCardObjects.Clear();
             
-            if (!ShowHandCards || CardPrefab == null || PlayerData.Hand.Count == 0)
+            if (!ShowHandCards || PlayerData.Hand.Count == 0)
                 return;
             
             // 确定手牌持握点
@@ -131,8 +138,17 @@ namespace LiarsBar
             for (int i = 0; i < PlayerData.Hand.Count; i++)
             {
                 var card = PlayerData.Hand[i];
+                
+                // 根据牌的类型选择对应的预制体
+                GameObject prefabToUse = GetCardPrefabForRank(card.Rank);
+                if (prefabToUse == null)
+                {
+                    Debug.LogWarning($"Player {PlayerIndex}: 未找到 {card.Rank} 对应的预制体");
+                    continue;
+                }
+                
                 // 不作为子节点，直接放在场景根节点下
-                var cardObj = Instantiate(CardPrefab, Vector3.zero, Quaternion.identity);
+                var cardObj = Instantiate(prefabToUse, Vector3.zero, Quaternion.identity);
                 
                 // 设置卡牌位置和旋转（扇形排列）
                 float angle = startAngle + i * fanAngle;
@@ -207,6 +223,21 @@ namespace LiarsBar
         public CharacterAnimationController GetAnimationController()
         {
             return animController;
+        }
+
+        /// <summary>根据牌面获取对应的预制体</summary>
+        GameObject GetCardPrefabForRank(Rank rank)
+        {
+            GameObject prefab = rank switch
+            {
+                Rank.Q => CardPrefab_Q,
+                Rank.K => CardPrefab_K,
+                Rank.A => CardPrefab_A,
+                _ => null
+            };
+            
+            // 如果特定预制体为空，使用通用预制体作为后备
+            return prefab != null ? prefab : CardPrefab;
         }
 
         /// <summary>查找骨骼节点</summary>
