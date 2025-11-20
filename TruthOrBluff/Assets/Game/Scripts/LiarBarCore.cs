@@ -26,14 +26,15 @@ namespace LiarsBar
     }
 
     /// <summary>游戏阶段</summary>
-    public enum Phase { Claim, WaitForResponse, Response }
+    public enum Phase { Claim, Response }
 
     /// <summary>上一次声明记录</summary>
     public class LastClaim
     {
         public int PlayerIndex;
-        public string CardId;
+        public List<string> CardIds; // 支持多张牌
         public Rank DeclaredRank;
+        public int CardCount => CardIds?.Count ?? 0;
     }
 
     /// <summary>游戏状态</summary>
@@ -59,7 +60,7 @@ namespace LiarsBar
     public interface IAgent
     {
         string Name { get; }
-        string ChooseClaimCard(GameState s, int playerIndex, Random rng);
+        List<string> ChooseClaimCards(GameState s, int playerIndex, Random rng); // 返回1-3张牌的ID列表
         bool DecideChallenge(GameState s, int responderIndex, Random rng);
     }
 
@@ -117,7 +118,7 @@ namespace LiarsBar
             State = new GameState
             {
                 TableRank = config.TableRank,
-                BulletSlot = Math.Clamp(config.BulletSlot, 1, 6)
+                BulletSlot = rng.Next(1, 7) // 随机生成1-6之间的子弹槽位
             };
 
             for (int i = 0; i < config.PlayerCount; i++)
@@ -136,9 +137,9 @@ namespace LiarsBar
         }
 
         /// <summary>运行游戏直到结束</summary>
-        public void RunUntilGameOver(int maxSteps = 500)
+        public void RunUntilGameOver()
         {
-            while (!IsGameOver() && State.Step < maxSteps)
+            while (!IsGameOver())
                 StepOnce();
 
             if (IsGameOver())
@@ -161,8 +162,6 @@ namespace LiarsBar
 
             if (State.Phase == Phase.Claim)
                 ProcessClaimPhase();
-            else if (State.Phase == Phase.WaitForResponse)
-                ProcessWaitPhase();
             else
                 ProcessResponsePhase();
         }
@@ -172,17 +171,42 @@ namespace LiarsBar
             var me = CurrentPlayer();
             if (!me.Alive) { AdvanceTurnToNextAlive(); return; }
 
+            // 检查当前玩家是否有牌
             if (me.Hand.Count == 0)
             {
+                // 检查是否所有存活玩家都没有牌了
+                bool allPlayersEmpty = State.Players.Where(p => p.Alive).All(p => p.Hand.Count == 0);
+                if (allPlayersEmpty)
+                {
+                    var alivePlayers = State.Players.Where(p => p.Alive).ToList();
+                    
+                    // 如果只剩一个玩家，游戏结束
+                    if (alivePlayers.Count <= 1)
+                    {
+                        Events.TriggerGameOver(new GameOverEvent
+                        {
+                            WinnerIndex = alivePlayers.Count == 1 ? alivePlayers[0].Index : (int?)null,
+                            WinnerName = alivePlayers.Count == 1 ? alivePlayers[0].Name : null,
+                            IsDraw = alivePlayers.Count != 1
+                        });
+                        return;
+                    }
+                    
+                    // 如果有多名玩家存活，重新发牌继续游戏
+                    RedealCards();
+                    return;
+                }
+                
+                // 否则跳过该玩家
                 AdvanceTurnToNextAlive();
                 return;
             }
 
-            var card = ChooseAndPlayCard(me);
+            var cards = ChooseAndPlayCards(me);
             State.LastClaim = new LastClaim
             {
                 PlayerIndex = me.Index,
-                CardId = card.Id,
+                CardIds = cards.Select(c => c.Id).ToList(),
                 DeclaredRank = State.TableRank
             };
             
@@ -191,36 +215,92 @@ namespace LiarsBar
                 PlayerIndex = me.Index,
                 PlayerName = me.Name,
                 DeclaredRank = State.TableRank,
+                PlayedCardCount = cards.Count,
                 RemainingCards = me.Hand.Count
             });
             
-            // 切换到等待阶段，下一步才进入Response
-            State.Phase = Phase.WaitForResponse;
-        }
-
-        Card ChooseAndPlayCard(PlayerData player)
-        {
-            var chooseId = agents[player.Index].ChooseClaimCard(State, player.Index, rng);
-            var card = PopCardFromHand(player, chooseId) ?? PopRandomCard(player, rng);
-            State.Pile.Add(card);
-            return card;
-        }
-
-        void ProcessWaitPhase()
-        {
-            // 等待阶段：切换到下一个玩家，准备进入Response阶段
+            // 切换到响应阶段，并通知下家
             int nextPlayer = NextAlive(State.Turn);
-            var nextPlayerData = State.Players[nextPlayer];
+            State.Phase = Phase.Response;
             
             Events.TriggerTurnChanged(new TurnChangedEvent
             {
                 CurrentPlayerIndex = nextPlayer,
-                CurrentPlayerName = nextPlayerData.Name,
-                Phase = Phase.WaitForResponse
+                CurrentPlayerName = State.Players[nextPlayer].Name,
+                Phase = Phase.Response
             });
+        }
+
+        List<Card> ChooseAndPlayCards(PlayerData player)
+        {
+            var chooseIds = agents[player.Index].ChooseClaimCards(State, player.Index, rng);
+            var cards = new List<Card>();
             
-            // 切换到Response阶段，下一步将进行质疑判断
-            State.Phase = Phase.Response;
+            // 确保返回1-3张牌
+            if (chooseIds == null || chooseIds.Count == 0 || chooseIds.Count > 3)
+            {
+                // 默认出1张随机牌
+                cards.Add(PopRandomCard(player, rng));
+            }
+            else
+            {
+                foreach (var id in chooseIds)
+                {
+                    var card = PopCardFromHand(player, id);
+                    if (card != null)
+                        cards.Add(card);
+                }
+                
+                // 如果没有成功获取任何牌，随机出一张
+                if (cards.Count == 0)
+                    cards.Add(PopRandomCard(player, rng));
+            }
+            
+            // 将牌加入牌堆
+            State.Pile.AddRange(cards);
+            return cards;
+        }
+
+        /// <summary>重新发牌给存活玩家</summary>
+        void RedealCards()
+        {
+            // 清空牌堆
+            State.Pile.Clear();
+            State.LastClaim = null;
+            
+            // 获取存活玩家
+            var alivePlayers = State.Players.Where(p => p.Alive).ToList();
+            
+            // 重新构建牌组（只给存活玩家发牌）
+            var deck = new List<Card>();
+            int copiesPerRank = alivePlayers.Count * Config.CopiesPerRankPerPlayer;
+            int id = State.Step * 1000; // 使用步数作为ID前缀避免重复
+            foreach (var r in new[] { Rank.Q, Rank.K, Rank.A })
+                for (int i = 0; i < copiesPerRank; i++)
+                    deck.Add(new Card($"{r}{id++}", r));
+            
+            // 洗牌
+            Shuffle(deck, rng);
+            
+            // 发牌给存活玩家
+            for (int i = 0; i < deck.Count; i++)
+                alivePlayers[i % alivePlayers.Count].Hand.Add(deck[i]);
+            
+            // 重置惩罚轨和子弹槽位
+            State.ChamberCount = 0;
+            State.BulletSlot = rng.Next(1, 7);
+            
+            // 重置回合到第一个存活玩家
+            State.Turn = State.Players.FindIndex(p => p.Alive);
+            State.Phase = Phase.Claim;
+            
+            // 触发事件通知UI更新
+            Events.TriggerTurnChanged(new TurnChangedEvent
+            {
+                CurrentPlayerIndex = State.Turn,
+                CurrentPlayerName = State.Players[State.Turn].Name,
+                Phase = Phase.Claim
+            });
         }
 
         void ProcessResponsePhase()
@@ -238,17 +318,15 @@ namespace LiarsBar
             var claimant = State.Players[State.LastClaim.PlayerIndex];
             bool isFinalShowdown = State.AliveCount() == 2 && claimant.Hand.Count == 0;
             
+            // 下家必须选择：质疑 或 继续出牌（移除同意功能）
             if (isFinalShowdown || agents[responder].DecideChallenge(State, responder, rng))
+            {
+                // 选择质疑
                 ResolveChallenge(responder, isFinalShowdown);
+            }
             else
             {
-                var responderData = State.Players[responder];
-                Events.TriggerClaimAccepted(new ClaimAcceptedEvent
-                {
-                    ResponderIndex = responder,
-                    ResponderName = responderData.Name
-                });
-                
+                // 选择不质疑，直接进入出牌阶段（移除同意事件）
                 State.LastClaim = null;
                 State.Turn = responder;
                 State.Phase = Phase.Claim;
@@ -256,7 +334,7 @@ namespace LiarsBar
                 Events.TriggerTurnChanged(new TurnChangedEvent
                 {
                     CurrentPlayerIndex = responder,
-                    CurrentPlayerName = responderData.Name,
+                    CurrentPlayerName = State.Players[responder].Name,
                     Phase = Phase.Claim
                 });
             }
@@ -267,8 +345,13 @@ namespace LiarsBar
             var claimantIndex = State.LastClaim.PlayerIndex;
             var claimant = State.Players[claimantIndex];
             var responder = State.Players[responderIndex];
-            var lastCard = State.Pile.Last();
-            bool truthful = (lastCard.Rank == State.TableRank);
+            
+            // 获取最后出的几张牌
+            var claimedCardCount = State.LastClaim.CardCount;
+            var lastCards = State.Pile.Skip(State.Pile.Count - claimedCardCount).ToList();
+            
+            // 只有所有牌都为真才算真话
+            bool truthful = lastCards.All(card => card.Rank == State.TableRank);
 
             Events.TriggerChallenge(new ChallengeEvent
             {
@@ -276,7 +359,8 @@ namespace LiarsBar
                 ChallengerName = responder.Name,
                 ClaimantIndex = claimantIndex,
                 ClaimantName = claimant.Name,
-                RevealedRank = lastCard.Rank,
+                RevealedRank = lastCards.Count > 0 ? lastCards[0].Rank : State.TableRank,
+                RevealedCardCount = lastCards.Count,
                 WasTruthful = truthful
             });
 
@@ -288,6 +372,7 @@ namespace LiarsBar
             {
                 loser.Alive = false;
                 State.ChamberCount = 0;
+                State.BulletSlot = rng.Next(1, 7); // 重置时随机生成新的子弹槽位
                 
                 Events.TriggerPlayerEliminated(new PlayerEliminatedEvent
                 {
@@ -312,6 +397,7 @@ namespace LiarsBar
                 {
                     loser.Alive = false;
                     State.ChamberCount = 0;
+                    State.BulletSlot = rng.Next(1, 7); // 重置时随机生成新的子弹槽位
                     
                     Events.TriggerPlayerEliminated(new PlayerEliminatedEvent
                     {
@@ -348,7 +434,7 @@ namespace LiarsBar
             return i;
         }
 
-        public bool IsGameOver() => State.AliveCount() <= 1 || State.EveryoneEmptyHand();
+        public bool IsGameOver() => State.AliveCount() <= 1;
 
         // ========== 工具方法 ==========
         
@@ -405,10 +491,24 @@ namespace LiarsBar
         public string Name { get; }
         public RandomBot(string name) => Name = name;
         
-        public string ChooseClaimCard(GameState s, int playerIndex, Random rng)
+        public List<string> ChooseClaimCards(GameState s, int playerIndex, Random rng)
         {
             var hand = s.Players[playerIndex].Hand;
-            return hand.Count == 0 ? null : hand[rng.Next(hand.Count)].Id;
+            if (hand.Count == 0) return new List<string>();
+            
+            // 随机选择1-3张牌
+            int cardCount = rng.Next(1, Math.Min(4, hand.Count + 1));
+            var selectedCards = new List<string>();
+            var availableCards = new List<Card>(hand);
+            
+            for (int i = 0; i < cardCount; i++)
+            {
+                var card = availableCards[rng.Next(availableCards.Count)];
+                selectedCards.Add(card.Id);
+                availableCards.Remove(card);
+            }
+            
+            return selectedCards;
         }
         
         public bool DecideChallenge(GameState s, int responderIndex, Random rng) 

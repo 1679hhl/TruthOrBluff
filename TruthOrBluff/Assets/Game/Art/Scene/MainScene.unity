@@ -28671,9 +28671,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e20f2ccb39c09fa438ed4e652699726b, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1259930088}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e20f2ccb39c09fa438ed4e652699726b, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1259930090}
   m_SourcePrefab: {fileID: 100100000, guid: e20f2ccb39c09fa438ed4e652699726b, type: 3}
 --- !u!1 &1259930087 stripped
 GameObject:
@@ -28702,18 +28699,6 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
---- !u!114 &1259930090
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1259930087}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 15789fa1f36ddad44a22e1654d1b01c9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!4 &1259930091 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e20f2ccb39c09fa438ed4e652699726b, type: 3}
@@ -28872,10 +28857,11 @@ MonoBehaviour:
   tableRank: 0
   bulletSlot: 4
   copiesPerRankPerPlayer: 2
-  seed: 12345
+  useRandomSeed: 1
+  fixedSeed: 12345
   botTypes: 01000000020000000000000001000000
   autoPlay: 0
-  stepInterval: 1
+  stepInterval: 0.2
 --- !u!1 &1561619538
 GameObject:
   m_ObjectHideFlags: 0

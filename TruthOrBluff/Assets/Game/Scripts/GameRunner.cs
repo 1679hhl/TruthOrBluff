@@ -12,7 +12,12 @@ namespace LiarsBar
         public Rank tableRank = Rank.Q;
         [Range(1, 6)] public int bulletSlot = 4;
         public int copiesPerRankPerPlayer = 2;
-        public int seed = 12345;
+        
+        [Header("随机种子")]
+        [Tooltip("勾选后每次游戏使用随机种子，否则使用固定种子")]
+        public bool useRandomSeed = true;
+        [Tooltip("固定种子值（仅在useRandomSeed为false时使用）")]
+        public int fixedSeed = 12345;
 
         [Header("AI 配置")]
         [Tooltip("0=随机, 1=谨慎, 2=莽夫")]
@@ -47,6 +52,9 @@ namespace LiarsBar
         /// <summary>初始化游戏</summary>
         public void InitializeGame()
         {
+            // 生成种子：使用随机种子或固定种子
+            int gameSeed = useRandomSeed ? System.Environment.TickCount : fixedSeed;
+            
             // 创建配置
             var config = new GameConfig
             {
@@ -54,7 +62,7 @@ namespace LiarsBar
                 TableRank = tableRank,
                 BulletSlot = bulletSlot,
                 CopiesPerRankPerPlayer = copiesPerRankPerPlayer,
-                Seed = seed
+                Seed = gameSeed
             };
 
             // 创建 AI 代理
@@ -74,7 +82,7 @@ namespace LiarsBar
             if (presenter == null)
                 Debug.LogWarning("未找到 GamePresenter！UI 将不会更新。");
 
-            Debug.Log("游戏初始化完成。按 Space 步进，或启用 autoPlay。");
+            Debug.Log($"游戏初始化完成（种子: {gameSeed}）。按 Space 步进，或启用 autoPlay。");
         }
 
         /// <summary>执行一步游戏</summary>

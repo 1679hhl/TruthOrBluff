@@ -18,7 +18,8 @@ namespace LiarsBar
         public int PlayerIndex;
         public string PlayerName;
         public Rank DeclaredRank;
-        public int RemainingCards;
+        public int PlayedCardCount;  // 本次出了几张牌
+        public int RemainingCards;   // 剩余手牌数
     }
 
     /// <summary>玩家接受声明事件</summary>
@@ -35,8 +36,9 @@ namespace LiarsBar
         public string ChallengerName;
         public int ClaimantIndex;
         public string ClaimantName;
-        public Rank RevealedRank;
-        public bool WasTruthful;
+        public Rank RevealedRank;    // 翻开的牌面（用于显示）
+        public int RevealedCardCount; // 翻开了几张牌
+        public bool WasTruthful;     // 是否所有牌都为真
     }
 
     /// <summary>惩罚轨推进事件</summary>

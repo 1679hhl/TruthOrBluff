@@ -99,8 +99,9 @@ namespace LiarsBar
 
         void OnCardPlayed(CardPlayedEvent e)
         {
-            Log($"{e.PlayerName} 打出一张牌，声称是 {e.DeclaredRank}");
-            ShowMessage($"{e.PlayerName} 声称打出 {e.DeclaredRank}");
+            string cardCountText = e.PlayedCardCount > 1 ? $"{e.PlayedCardCount}张" : "1张";
+            Log($"{e.PlayerName} 打出{cardCountText}牌，声称都是 {e.DeclaredRank}");
+            ShowMessage($"{e.PlayerName} 出{cardCountText} {e.DeclaredRank}");
             
             // 播放动画
             var controller = GetPlayerController(e.PlayerIndex);
@@ -112,15 +113,16 @@ namespace LiarsBar
 
         void OnClaimAccepted(ClaimAcceptedEvent e)
         {
-            Log($"{e.ResponderName} 接受了声明");
-            ShowMessage($"{e.ResponderName} 接受");
+            // 已移除"接受声明"功能，此方法保留以兼容旧事件系统
+            // 新规则：玩家只能选择质疑或继续出牌
         }
 
         void OnChallenge(ChallengeEvent e)
         {
-            string result = e.WasTruthful ? "说真话" : "说谎";
-            Log($"{e.ChallengerName} 质疑 {e.ClaimantName}！翻开的牌是 {e.RevealedRank}（{result}）");
-            ShowMessage($"质疑！实际是 {e.RevealedRank} - {e.ClaimantName} {result}！", 4f);
+            string result = e.WasTruthful ? "全是真牌" : "有假牌";
+            string cardCountText = e.RevealedCardCount > 1 ? $"{e.RevealedCardCount}张" : "1张";
+            Log($"{e.ChallengerName} 质疑 {e.ClaimantName}！翻开{cardCountText}牌 - {result}");
+            ShowMessage($"质疑！{e.ClaimantName} {result}！", 4f);
         }
 
         void OnPunishmentTrack(PunishmentTrackEvent e)
