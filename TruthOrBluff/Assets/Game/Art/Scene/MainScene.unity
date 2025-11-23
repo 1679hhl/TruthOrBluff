@@ -28859,7 +28859,8 @@ MonoBehaviour:
   copiesPerRankPerPlayer: 2
   useRandomSeed: 1
   fixedSeed: 12345
-  botTypes: 01000000020000000000000001000000
+  player0IsHuman: 1
+  botTypes: ffffffff020000000000000001000000
   autoPlay: 0
   stepInterval: 0.2
 --- !u!1 &1561619538
